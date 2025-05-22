@@ -9,7 +9,7 @@ export class User {
   _id: mongoose.Types.ObjectId;
 
   @Prop({ required: true, unique: true })
-  id: number;
+  badgeNumber: number;
 
   @Prop({ required: true, unique: true })
   email: string;
@@ -28,20 +28,6 @@ export class User {
 
   @Prop({ required: true })
   partnerGender: string;
-
-  @Prop({
-    type: [
-      {
-        optionNo: { type: Number, required: true },
-        answer: { type: String, required: true },
-      },
-    ],
-    required: true,
-  })
-  questions: {
-    optionNo: number;
-    answer: string;
-  }[];
 
   @Prop({ type: Date, default: Date.now })
   date: Date;
