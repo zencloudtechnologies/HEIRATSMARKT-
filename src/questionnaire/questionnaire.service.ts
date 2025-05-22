@@ -76,85 +76,123 @@ export class QuestionnaireService {
   async getMatch(user: any) {
     try {
       const userId = new Types.ObjectId(user._id);
-      const userAnswers = await this.questionsModel.find({ userId });
 
+      // Fetch current user's answers
+      const userAnswers = await this.questionsModel.find({ userId });
+      const userAnswersMap = new Map<number, any>();
+      userAnswers.forEach((ans) => userAnswersMap.set(ans.questionNo, ans));
+
+      // Fetch matching users based on preferences
       const otherUsers = await this.getAllUser({
         age: user.partnerAge,
         gender: user.partnerGender,
       });
 
+      if (!otherUsers.length) {
+        return {
+          data: {
+            totalScore: 210,
+            superMatch: [],
+            goodMatch: [],
+            match: [],
+            maybeMatch: [],
+          },
+        };
+      }
+
+      // Pre-fetch all other users' answers in a single query
+      const otherUserIds = otherUsers.map((u) => new Types.ObjectId(u._id));
+      const allAnswers = await this.questionsModel.find({
+        userId: { $in: otherUserIds },
+      });
+
+      // Group answers by userId
+      const answersByUser = new Map<string, any[]>();
+      for (const ans of allAnswers) {
+        const uid = ans.userId.toString();
+        if (!answersByUser.has(uid)) answersByUser.set(uid, []);
+        answersByUser.get(uid)!.push(ans);
+      }
+
+      // Scoring thresholds
+      const TOTAL_POINTS = 210;
       const superMatchPoints = 189;
       const goodMatchPoints = 168;
-      const matchPointss = 105;
+      const matchPoints = 105;
       const maybeMatchPoints = 63;
+      const multiOptionQuestions = new Set([0, 4, 6, 8]);
 
-      let superMatch = [];
-      let goodMatch = [];
-      let match = [];
-      let maybeMatch = [];
+      const superMatch = [];
+      const goodMatch = [];
+      const match = [];
+      const maybeMatch = [];
 
+      // Compare all other users
       for (const otherUser of otherUsers) {
-        const otherUserAnswers = await this.questionsModel.find({
-          userId: new Types.ObjectId(otherUser._id),
-        });
+        const otherUserAnswers =
+          answersByUser.get(otherUser._id.toString()) || [];
+        let points = 0;
 
-        let matchPoints = 0;
+        for (const otherAns of otherUserAnswers) {
+          const userAns = userAnswersMap.get(otherAns.questionNo);
+          if (!userAns) continue;
 
-        userAnswers.forEach((userAnswer) => {
-          const matching = otherUserAnswers.find(
-            (otherAns) => otherAns.questionNo === userAnswer.questionNo,
-          );
+          const qNo = userAns.questionNo;
 
-          if (!matching) return;
-
-          const qNo = userAnswer.questionNo;
-          const isMultiOption = [0, 4, 6, 8].includes(qNo);
-
-          if (isMultiOption) {
-            const userOptions = [
-              userAnswer.optionNo,
-              userAnswer.optionNo2,
-              userAnswer.optionNo3,
-              userAnswer.optionNo4,
+          if (multiOptionQuestions.has(qNo)) {
+            const userOpts = [
+              userAns.optionNo,
+              userAns.optionNo2,
+              userAns.optionNo3,
+              userAns.optionNo4,
             ].filter(Boolean);
 
-            const matchOptions = [
-              matching.optionNo,
-              matching.optionNo2,
-              matching.optionNo3,
-              matching.optionNo4,
+            const otherOpts = [
+              otherAns.optionNo,
+              otherAns.optionNo2,
+              otherAns.optionNo3,
+              otherAns.optionNo4,
             ].filter(Boolean);
 
-            const optionCount = userOptions.length;
+            const perOptionPoints = 40 / userOpts.length;
 
-            let pointsPerOption = 40 / optionCount;
-
-            userOptions.forEach((opt) => {
-              if (matchOptions.includes(opt)) {
-                matchPoints += pointsPerOption;
+            for (const opt of userOpts) {
+              if (otherOpts.includes(opt)) {
+                points += perOptionPoints;
               }
-            });
+            }
           } else {
-            if (userAnswer.optionNo == matching.optionNo) {
-              matchPoints += 10;
+            if (userAns.optionNo === otherAns.optionNo) {
+              points += 10;
             }
           }
-        });
-        const points = Number(matchPoints.toFixed(1));
+        }
 
-        if (points >= superMatchPoints) {
-          superMatch.push({ badgeNumber: otherUser.badgeNumber, points });
-        } else if (points >= goodMatchPoints) {
-          goodMatch.push({ badgeNumber: otherUser.badgeNumber, points });
-        } else if (points >= matchPointss) {
-          match.push({ badgeNumber: otherUser.badgeNumber, points });
-        } else if (points >= maybeMatchPoints) {
-          maybeMatch.push({ badgeNumber: otherUser.badgeNumber, points });
+        const finalPoints = Number(points.toFixed(1));
+        const matchData = {
+          badgeNumber: otherUser.badgeNumber,
+          points: finalPoints,
+        };
+
+        if (finalPoints >= superMatchPoints) {
+          superMatch.push(matchData);
+        } else if (finalPoints >= goodMatchPoints) {
+          goodMatch.push(matchData);
+        } else if (finalPoints >= matchPoints) {
+          match.push(matchData);
+        } else if (finalPoints >= maybeMatchPoints) {
+          maybeMatch.push(matchData);
         }
       }
 
       return {
-        data: { totalScore: 210, superMatch, goodMatch, match, maybeMatch },
+        data: {
+          totalScore: TOTAL_POINTS,
+          superMatch,
+          goodMatch,
+          match,
+          maybeMatch,
+        },
       };
     } catch (error) {
       console.error(error);
