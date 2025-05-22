@@ -10,7 +10,7 @@ export class QuestionnaireController {
   async getMessages(@Body() user: CreateUserDto) {
     try {
       const latestUser = await this.userService.getUser({});
-      const id = latestUser ? latestUser.id : 1;
+      const id = latestUser ? latestUser.id + 1 : 1;
       user.id = id;
       return this.userService.create(user);
     } catch (error) {
