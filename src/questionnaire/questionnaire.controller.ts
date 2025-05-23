@@ -5,10 +5,13 @@ import {
   Get,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { QuestionnaireService } from './questionnaire.service';
 import { CreateUserDto } from './entities/dtos/createUser.dto';
 import { FindMatchDto } from './entities/dtos/findMatch.dto';
+import { FindAllMatchDto } from './entities/dtos/findAllMatch.dto';
+import { AuthGuard } from '../guards/authentication.guard';
 
 @Controller('questionnaire')
 export class QuestionnaireController {
@@ -68,7 +71,52 @@ export class QuestionnaireController {
       console.error(error);
       throw new ConflictException({
         success: false,
-        error: error.response?.error || 'Error occurred while creating user',
+        error: error.response?.error || 'Error occurred while matching user',
+      });
+    }
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('findMatchOfAllUsers')
+  async findMatchOfAllUsers(@Query() user: FindAllMatchDto) {
+    try {
+      const { name, badgeNumber, page, limit } = user;
+      if (!page || !limit) {
+        throw new ConflictException({
+          success: false,
+          error: 'Page and Limit is required',
+        });
+      }
+      let query: any = {};
+      if (name) {
+        query.name = { $regex: `^${name}`, $options: 'i' };
+      }
+
+      if (badgeNumber) {
+        query.badgeNumber = badgeNumber;
+      }
+
+      const { users, totalPages } = await this.userService.getAllUsersWithPage(
+        query,
+        page,
+        limit,
+      );
+      let usersData = [];
+      if (users.length > 0) {
+        await Promise.all(
+          users.map(async (user) => {
+            const match = await this.userService.getMatch(user);
+            usersData.push({ yourBagde: user.badgeNumber, match });
+          }),
+        );
+      }
+
+      return { success: true, usersData, totalPages };
+    } catch (error) {
+      console.error(error);
+      throw new ConflictException({
+        success: false,
+        error: error.response?.error || 'Error occurred while matching user',
       });
     }
   }

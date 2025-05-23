@@ -3,6 +3,7 @@ import { QuestionnaireService } from './questionnaire.service';
 import { QuestionnaireController } from './questionnaire.controller';
 import { User, UserSchema } from './entities/models/user.model';
 import { Questions, QuestionsSchema } from './entities/models/questions.model';
+import { AuthModule } from "../auth/auth.module";
 import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
@@ -11,6 +12,7 @@ import { MongooseModule } from '@nestjs/mongoose';
       { name: User.name, schema: UserSchema },
       { name: Questions.name, schema: QuestionsSchema },
     ]),
+    AuthModule
   ],
   providers: [QuestionnaireService],
   controllers: [QuestionnaireController],

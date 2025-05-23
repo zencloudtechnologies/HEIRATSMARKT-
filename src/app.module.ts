@@ -4,6 +4,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppService } from './app.service';
 import { AppController } from './app.controller';
 import { QuestionnaireModule } from './questionnaire/questionnaire.module';
+import { AuthModule } from './auth/auth.module';
+import { AuthGuard } from './guards/authentication.guard';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -18,8 +20,9 @@ import { QuestionnaireModule } from './questionnaire/questionnaire.module';
       inject: [ConfigService],
     }),
     QuestionnaireModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, AuthGuard],
 })
 export class AppModule {}

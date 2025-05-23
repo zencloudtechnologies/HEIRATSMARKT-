@@ -68,7 +68,34 @@ export class QuestionnaireService {
       console.error(error);
       throw new ConflictException({
         success: false,
-        message: error.response?.error || 'Error occurred while creating user',
+        message: error.response?.error || 'Error occurred while fetching user',
+      });
+    }
+  }
+
+  async getAllUsersWithPage(query: any, page: number, limit: number) {
+    try {
+      const skip = (page - 1) * limit;
+
+      const [users, total] = await Promise.all([
+        this.userModel
+          .find(query)
+          .sort({ date: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.userModel.countDocuments(query),
+      ]);
+
+      return {
+        users,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      console.error(error);
+      throw new ConflictException({
+        success: false,
+        message: error.response?.error || 'Error occurred while fetching users',
       });
     }
   }
