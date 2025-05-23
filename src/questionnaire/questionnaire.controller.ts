@@ -102,7 +102,7 @@ export class QuestionnaireController {
         await Promise.all(
           users.map(async (user) => {
             const match = await this.userService.getMatch(user);
-            usersData.push({ yourBagde: user.badgeNumber, match });
+            usersData.push({ user, match });
           }),
         );
       }
