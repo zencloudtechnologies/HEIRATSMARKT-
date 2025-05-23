@@ -80,20 +80,16 @@ export class QuestionnaireController {
   @Get('findMatchOfAllUsers')
   async findMatchOfAllUsers(@Query() user: FindAllMatchDto) {
     try {
-      const { name, badgeNumber, page, limit } = user;
-      if (!page || !limit) {
-        throw new ConflictException({
-          success: false,
-          error: 'Page and Limit is required',
-        });
-      }
+      const { search, page, limit } = user;
       let query: any = {};
-      if (name) {
-        query.name = { $regex: `^${name}`, $options: 'i' };
-      }
-
-      if (badgeNumber) {
-        query.badgeNumber = badgeNumber;
+      if (search) {
+        const orConditions: any[] = [
+          { name: { $regex: `^${search}`, $options: 'i' } },
+        ];
+        if (!isNaN(Number(search))) {
+          orConditions.push({ badgeNumber: Number(search) });
+        }
+        query.$or = orConditions;
       }
 
       const { users, totalPages } = await this.userService.getAllUsersWithPage(

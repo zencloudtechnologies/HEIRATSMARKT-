@@ -2,16 +2,11 @@ import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FindAllMatchDto {
-  @IsOptional()
-  @IsNumber()
-  @IsNotEmpty()
-  @Type(() => Number)
-  badgeNumber: number;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
-  name: string;
+  search: string;
 
   @IsNumber()
   @IsNotEmpty()
