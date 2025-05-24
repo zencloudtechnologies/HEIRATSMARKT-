@@ -80,7 +80,7 @@ export class QuestionnaireController {
   @Get('findMatchOfAllUsers')
   async findMatchOfAllUsers(@Query() user: FindAllMatchDto) {
     try {
-      const { search, page, limit } = user;
+      const { search, page, limit, sortBy } = user;
       let query: any = {};
       if (search) {
         const orConditions: any[] = [
@@ -92,20 +92,22 @@ export class QuestionnaireController {
         query.$or = orConditions;
       }
 
-      const { users, totalPages } = await this.userService.getAllUsersWithPage(
-        query,
-        page,
-        limit,
-      );
-      let usersData = [];
-      if (users.length > 0) {
-        await Promise.all(
-          users.map(async (user) => {
-            const match = await this.userService.getMatch(user);
-            usersData.push({ user, match });
-          }),
-        );
-      }
+      const {usersData, totalPages} = await this.userService.getMatchh(page, limit, query, sortBy)
+
+      // const { users, totalPages } = await this.userService.getAllUsersWithPage(
+      //   query,
+      //   page,
+      //   limit,
+      // );
+      // let usersData = [];
+      // if (users.length > 0) {
+      //   await Promise.all(
+      //     users.map(async (user) => {
+      //       const match = await this.userService.getMatchh(user, sortBy);
+      //       usersData.push({ user, match });
+      //     }),
+      //   );
+      // }
 
       return { success: true, usersData, totalPages };
     } catch (error) {

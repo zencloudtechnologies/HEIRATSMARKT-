@@ -8,7 +8,7 @@ export class Questions {
   @Prop({ type: mongoose.Schema.Types.ObjectId, auto: true })
   _id: mongoose.Types.ObjectId;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, required: true,  })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User'  })
   userId: mongoose.Types.ObjectId;
 
   @Prop({ type: Number, required: true })

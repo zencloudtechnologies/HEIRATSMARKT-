@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FindAllMatchDto {
@@ -7,6 +7,12 @@ export class FindAllMatchDto {
   @IsString()
   @IsNotEmpty()
   search: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['showAll', 'superMatch', 'goodMatch', 'match', 'maybeMatch'])
+  sortBy: string;
 
   @IsNumber()
   @IsNotEmpty()
