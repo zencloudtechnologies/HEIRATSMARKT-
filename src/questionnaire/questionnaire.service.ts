@@ -103,22 +103,41 @@ export class QuestionnaireService {
   async getMatch(user: any) {
     try {
       const userId = new Types.ObjectId(user._id);
-
+  
       // Fetch current user's answers
       const userAnswers = await this.questionsModel.find({ userId });
       const userAnswersMap = new Map<number, any>();
       userAnswers.forEach((ans) => userAnswersMap.set(ans.questionNo, ans));
-
-      // Fetch matching users based on preferences
+  
+      // Calculate maximum possible score based on current user's answers
+      const multiOptionQuestions = new Set([0, 4, 6, 8]);
+      let maxPoints = 0;
+  
+      for (const ans of userAnswers) {
+        const qNo = ans.questionNo;
+        if (multiOptionQuestions.has(qNo)) {
+          const options = [
+            ans.optionNo,
+            ans.optionNo2,
+            ans.optionNo3,
+            ans.optionNo4,
+          ].filter(Boolean);
+          maxPoints += options.length * 10;
+        } else {
+          maxPoints += 10;
+        }
+      }
+  
+      // Get potential matches
       const otherUsers = await this.getAllUser({
         age: user.partnerAge,
         gender: user.partnerGender,
       });
-
+  
       if (!otherUsers.length) {
         return {
           data: {
-            totalScore: 210,
+            totalScore: maxPoints,
             superMatch: [],
             goodMatch: [],
             match: [],
@@ -126,13 +145,13 @@ export class QuestionnaireService {
           },
         };
       }
-
-      // Pre-fetch all other users' answers in a single query
+  
+      // Fetch all answers of other users
       const otherUserIds = otherUsers.map((u) => new Types.ObjectId(u._id));
       const allAnswers = await this.questionsModel.find({
         userId: { $in: otherUserIds },
       });
-
+  
       // Group answers by userId
       const answersByUser = new Map<string, any[]>();
       for (const ans of allAnswers) {
@@ -140,32 +159,23 @@ export class QuestionnaireService {
         if (!answersByUser.has(uid)) answersByUser.set(uid, []);
         answersByUser.get(uid)!.push(ans);
       }
-
-      // Scoring thresholds
-      const TOTAL_POINTS = 210;
-      const superMatchPoints = 189;
-      const goodMatchPoints = 168;
-      const matchPoints = 105;
-      const maybeMatchPoints = 63;
-      const multiOptionQuestions = new Set([0, 4, 6, 8]);
-
+  
       const superMatch = [];
       const goodMatch = [];
       const match = [];
       const maybeMatch = [];
-
-      // Compare all other users
+  
       for (const otherUser of otherUsers) {
         const otherUserAnswers =
           answersByUser.get(otherUser._id.toString()) || [];
         let points = 0;
-
+  
         for (const otherAns of otherUserAnswers) {
           const userAns = userAnswersMap.get(otherAns.questionNo);
           if (!userAns) continue;
-
+  
           const qNo = userAns.questionNo;
-
+  
           if (multiOptionQuestions.has(qNo)) {
             const userOpts = [
               userAns.optionNo,
@@ -173,19 +183,17 @@ export class QuestionnaireService {
               userAns.optionNo3,
               userAns.optionNo4,
             ].filter(Boolean);
-
+  
             const otherOpts = [
               otherAns.optionNo,
               otherAns.optionNo2,
               otherAns.optionNo3,
               otherAns.optionNo4,
             ].filter(Boolean);
-
-            const perOptionPoints = 40 / userOpts.length;
-
+  
             for (const opt of userOpts) {
               if (otherOpts.includes(opt)) {
-                points += perOptionPoints;
+                points += 10;
               }
             }
           } else {
@@ -194,27 +202,28 @@ export class QuestionnaireService {
             }
           }
         }
-
-        const finalPoints = Number(points.toFixed(1));
+  
+        const percentage = (points / maxPoints) * 100;
         const matchData = {
           badgeNumber: otherUser.badgeNumber,
-          points: finalPoints,
+          points: Number(points.toFixed(1)),
+          percentage: Number(percentage.toFixed(1)),
         };
-
-        if (finalPoints >= superMatchPoints) {
+  
+        if (percentage >= 90) {
           superMatch.push(matchData);
-        } else if (finalPoints >= goodMatchPoints) {
+        } else if (percentage >= 80) {
           goodMatch.push(matchData);
-        } else if (finalPoints >= matchPoints) {
+        } else if (percentage >= 50) {
           match.push(matchData);
-        } else if (finalPoints >= maybeMatchPoints) {
+        } else if (percentage >= 30) {
           maybeMatch.push(matchData);
         }
       }
-
+  
       return {
         data: {
-          totalScore: TOTAL_POINTS,
+          totalScore: maxPoints,
           superMatch,
           goodMatch,
           match,
@@ -230,19 +239,20 @@ export class QuestionnaireService {
       });
     }
   }
+  
 
   async getMatchh(page: number, limit: number, query: any, sort: string) {
     try {
       const SPECIAL_QUESTIONS = [0, 4, 6, 8];
-
+  
       const pipeline: any = [
         {
           $match: query,
         },
         { $skip: (page - 1) * limit },
         { $limit: limit },
-
-        // First get all user details we'll need
+  
+        // Get current user's details
         {
           $lookup: {
             from: 'users',
@@ -252,8 +262,18 @@ export class QuestionnaireService {
           },
         },
         { $unwind: '$userDetails' },
-
-        // Then get other users for matching
+  
+        // Fetch current user's answers
+        {
+          $lookup: {
+            from: 'questions',
+            localField: '_id',
+            foreignField: 'userId',
+            as: 'currentUserAnswers',
+          },
+        },
+  
+        // Find potential matches
         {
           $lookup: {
             from: 'users',
@@ -272,38 +292,26 @@ export class QuestionnaireService {
             as: 'otherUsers',
           },
         },
-
-        // Filter otherUsers to only those matching partnerGender and partnerAge conditions
+  
+        // Filter other users by preferred gender/age
         {
           $addFields: {
             otherUsers: {
               $filter: {
                 input: '$otherUsers',
-                as: 'otherUser',
+                as: 'ou',
                 cond: {
                   $and: [
-                    {
-                      $eq: ['$$otherUser.gender', '$userDetails.partnerGender'],
-                    },
-                    { $eq: ['$$otherUser.age', '$userDetails.partnerAge'] },
+                    { $eq: ['$$ou.gender', '$userDetails.partnerGender'] },
+                    { $eq: ['$$ou.age', '$userDetails.partnerAge'] },
                   ],
                 },
               },
             },
           },
         },
-
-        // Get current user's answers
-        {
-          $lookup: {
-            from: 'questions',
-            localField: '_id',
-            foreignField: 'userId',
-            as: 'currentUserAnswers',
-          },
-        },
-
-        // Calculate matches
+  
+        // Calculate matches with new point and percentage logic
         {
           $addFields: {
             matches: {
@@ -312,140 +320,119 @@ export class QuestionnaireService {
                 as: 'otherUser',
                 in: {
                   badgeNumber: '$$otherUser.badgeNumber',
-                  name: '$$otherUser.name',
-                  email: '$$otherUser.email',
-                  matchPoints: {
-                    $sum: {
-                      $map: {
-                        input: '$$otherUser.answers',
-                        as: 'otherAnswer',
-                        in: {
-                          $let: {
-                            vars: {
-                              matchingAnswer: {
-                                $first: {
-                                  $filter: {
-                                    input: '$currentUserAnswers',
-                                    as: 'currAnswer',
-                                    cond: {
-                                      $eq: [
-                                        '$$currAnswer.questionNo',
-                                        '$$otherAnswer.questionNo',
-                                      ],
-                                    },
+                  matchStats: {
+                    $reduce: {
+                      input: '$$otherUser.answers',
+                      initialValue: { totalScore: 0, maxScore: 0 },
+                      in: {
+                        $let: {
+                          vars: {
+                            matchingAnswer: {
+                              $first: {
+                                $filter: {
+                                  input: '$currentUserAnswers',
+                                  as: 'currAnswer',
+                                  cond: {
+                                    $eq: ['$$currAnswer.questionNo', '$$this.questionNo'],
                                   },
                                 },
                               },
-                              questionNo: '$$otherAnswer.questionNo',
                             },
-                            in: {
-                              $cond: [
-                                { $in: ['$$questionNo', SPECIAL_QUESTIONS] },
+                            isSpecial: {
+                              $in: ['$$this.questionNo', SPECIAL_QUESTIONS],
+                            },
+                          },
+                          in: {
+                            totalScore: {
+                              $add: [
+                                '$$value.totalScore',
                                 {
-                                  $let: {
-                                    vars: {
-                                      currentOpts: {
-                                        $filter: {
-                                          input: [
-                                            '$$matchingAnswer.optionNo',
-                                            '$$matchingAnswer.optionNo2',
-                                            '$$matchingAnswer.optionNo3',
-                                            '$$matchingAnswer.optionNo4',
-                                          ],
-                                          as: 'opt',
-                                          cond: { $ne: ['$$opt', null] },
-                                        },
-                                      },
-                                      otherOpts: {
-                                        $filter: {
-                                          input: [
-                                            '$$otherAnswer.optionNo',
-                                            '$$otherAnswer.optionNo2',
-                                            '$$otherAnswer.optionNo3',
-                                            '$$otherAnswer.optionNo4',
-                                          ],
-                                          as: 'opt',
-                                          cond: { $ne: ['$$opt', null] },
-                                        },
-                                      },
-                                    },
-                                    in: {
+                                  $cond: [
+                                    '$$isSpecial',
+                                    {
                                       $let: {
                                         vars: {
-                                          len: { $size: '$$currentOpts' },
+                                          currentOpts: {
+                                            $filter: {
+                                              input: [
+                                                '$$matchingAnswer.optionNo',
+                                                '$$matchingAnswer.optionNo2',
+                                                '$$matchingAnswer.optionNo3',
+                                                '$$matchingAnswer.optionNo4',
+                                              ],
+                                              as: 'opt',
+                                              cond: { $ne: ['$$opt', null] },
+                                            },
+                                          },
+                                          otherOpts: {
+                                            $filter: {
+                                              input: [
+                                                '$$this.optionNo',
+                                                '$$this.optionNo2',
+                                                '$$this.optionNo3',
+                                                '$$this.optionNo4',
+                                              ],
+                                              as: 'opt',
+                                              cond: { $ne: ['$$opt', null] },
+                                            },
+                                          },
                                         },
                                         in: {
-                                          $let: {
-                                            vars: {
-                                              pointPerMatch: {
-                                                $switch: {
-                                                  branches: [
-                                                    {
-                                                      case: {
-                                                        $eq: ['$$len', 4],
-                                                      },
-                                                      then: 10,
-                                                    },
-                                                    {
-                                                      case: {
-                                                        $eq: ['$$len', 3],
-                                                      },
-                                                      then: 13.3,
-                                                    },
-                                                    {
-                                                      case: {
-                                                        $eq: ['$$len', 2],
-                                                      },
-                                                      then: 20,
-                                                    },
-                                                    {
-                                                      case: {
-                                                        $eq: ['$$len', 1],
-                                                      },
-                                                      then: 40,
-                                                    },
-                                                  ],
-                                                  default: 0,
-                                                },
-                                              },
-                                            },
-                                            in: {
-                                              $sum: {
-                                                $map: {
-                                                  input: '$$currentOpts',
-                                                  as: 'currOpt',
-                                                  in: {
-                                                    $cond: [
-                                                      {
-                                                        $in: [
-                                                          '$$currOpt',
-                                                          '$$otherOpts',
-                                                        ],
-                                                      },
-                                                      '$$pointPerMatch',
-                                                      0,
-                                                    ],
-                                                  },
-                                                },
+                                          $sum: {
+                                            $map: {
+                                              input: '$$currentOpts',
+                                              as: 'opt',
+                                              in: {
+                                                $cond: [
+                                                  { $in: ['$$opt', '$$otherOpts'] },
+                                                  10,
+                                                  0,
+                                                ],
                                               },
                                             },
                                           },
                                         },
                                       },
                                     },
-                                  },
-                                },
-                                {
-                                  $cond: [
                                     {
-                                      $eq: [
-                                        '$$matchingAnswer.optionNo',
-                                        '$$otherAnswer.optionNo',
+                                      $cond: [
+                                        {
+                                          $eq: [
+                                            '$$matchingAnswer.optionNo',
+                                            '$$this.optionNo',
+                                          ],
+                                        },
+                                        10,
+                                        0,
                                       ],
                                     },
-                                    10,
-                                    0,
                                   ],
+                                },
+                              ],
+                            },
+                            maxScore: {
+                              $add: [
+                                '$$value.maxScore',
+                                {
+                                  $cond: ['$$isSpecial', {
+                                    $multiply: [
+                                      10,
+                                      {
+                                        $size: {
+                                          $filter: {
+                                            input: [
+                                              '$$matchingAnswer.optionNo',
+                                              '$$matchingAnswer.optionNo2',
+                                              '$$matchingAnswer.optionNo3',
+                                              '$$matchingAnswer.optionNo4',
+                                            ],
+                                            as: 'opt',
+                                            cond: { $ne: ['$$opt', null] },
+                                          },
+                                        },
+                                      },
+                                    ],
+                                  }, 10],
                                 },
                               ],
                             },
@@ -459,8 +446,8 @@ export class QuestionnaireService {
             },
           },
         },
-
-        // Categorize matches
+  
+        // Calculate match category by percentage
         {
           $addFields: {
             matches: {
@@ -469,24 +456,43 @@ export class QuestionnaireService {
                 as: 'm',
                 in: {
                   badgeNumber: '$$m.badgeNumber',
-                  matchPoints: { $round: ['$$m.matchPoints', 1] },
+                  email: '$$m.email',
+                  name: '$$m.name',
+                  matchPoints: { $round: ['$$m.matchStats.totalScore', 1] },
+                  matchPercent: {
+                    $cond: [
+                      { $eq: ['$$m.matchStats.maxScore', 0] },
+                      0,
+                      {
+                        $round: [
+                          {
+                            $multiply: [
+                              { $divide: ['$$m.matchStats.totalScore', '$$m.matchStats.maxScore'] },
+                              100,
+                            ],
+                          },
+                          1,
+                        ],
+                      },
+                    ],
+                  },
                   matchCategory: {
                     $switch: {
                       branches: [
                         {
-                          case: { $gte: ['$$m.matchPoints', 189] },
+                          case: { $gte: [{ $multiply: [{ $divide: ['$$m.matchStats.totalScore', '$$m.matchStats.maxScore'] }, 100] }, 90] },
                           then: 'superMatch',
                         },
                         {
-                          case: { $gte: ['$$m.matchPoints', 168] },
+                          case: { $gte: [{ $multiply: [{ $divide: ['$$m.matchStats.totalScore', '$$m.matchStats.maxScore'] }, 100] }, 80] },
                           then: 'goodMatch',
                         },
                         {
-                          case: { $gte: ['$$m.matchPoints', 105] },
+                          case: { $gte: [{ $multiply: [{ $divide: ['$$m.matchStats.totalScore', '$$m.matchStats.maxScore'] }, 100] }, 50] },
                           then: 'match',
                         },
                         {
-                          case: { $gte: ['$$m.matchPoints', 63] },
+                          case: { $gte: [{ $multiply: [{ $divide: ['$$m.matchStats.totalScore', '$$m.matchStats.maxScore'] }, 100] }, 30] },
                           then: 'maybeMatch',
                         },
                       ],
@@ -498,8 +504,8 @@ export class QuestionnaireService {
             },
           },
         },
-
-        // Filter matches to exclude 'noMatch'
+  
+        // Filter out noMatch
         {
           $addFields: {
             matches: {
@@ -511,19 +517,11 @@ export class QuestionnaireService {
             },
           },
         },
-
-        // Calculate totalScore
-        {
-          $addFields: {
-            totalScore: 210, // { $sum: '$matches.matchPoints' },
-          },
-        },
-
-        // Structure match data into categories
+  
+        // Build match object with categories
         {
           $addFields: {
             'match.data': {
-              totalScore: '$totalScore',
               superMatch: {
                 $filter: {
                   input: '$matches',
@@ -555,8 +553,8 @@ export class QuestionnaireService {
             },
           },
         },
-
-        // Sorting stage based on 'sort' parameter
+  
+        // Sort by chosen match type
         {
           $addFields: {
             sortField: {
@@ -579,15 +577,13 @@ export class QuestionnaireService {
                     then: { $size: '$match.data.maybeMatch' },
                   },
                 ],
-                default: -1, // showAll or unknown sort means no sorting effect
+                default: -1,
               },
             },
           },
         },
-        // Apply sorting only if sort is not 'showAll'
         ...(sort !== 'showAll' ? [{ $sort: { sortField: -1 } }] : []),
-
-        // Final projection with user details and match data, remove sortField
+  
         {
           $project: {
             user: {
@@ -600,19 +596,17 @@ export class QuestionnaireService {
               gender: '$userDetails.gender',
               partnerGender: '$userDetails.partnerGender',
               date: '$userDetails.date',
-              __v: '$userDetails.__v',
             },
             match: 1,
           },
         },
       ];
-
+  
       const results = await this.userModel.aggregate(pipeline).exec();
-
-      // Count total documents for pagination
-      const totalCount = await this.userModel.countDocuments();
+  
+      const totalCount = await this.userModel.countDocuments(query);
       const totalPages = Math.ceil(totalCount / limit);
-
+  
       return {
         usersData: results,
         totalPages,
@@ -626,4 +620,4 @@ export class QuestionnaireService {
       });
     }
   }
-}
+}  
