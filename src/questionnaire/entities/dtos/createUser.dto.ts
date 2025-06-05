@@ -45,6 +45,15 @@ class QuestionDto {
   @IsString()
   @IsNotEmpty()
   answer4: string;
+
+  @IsOptional()
+  @IsNumber()
+  optionNo5: number;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  answer5: string;
 }
 
 export class CreateUserDto {

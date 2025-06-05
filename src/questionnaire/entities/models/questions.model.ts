@@ -37,7 +37,14 @@ export class Questions {
 
   @Prop()
   answer4: string;
+  
+   @Prop()
+  optionNo5: number;
 
+  @Prop()
+  answer5: string;
+
+  
   @Prop({ type: Date, default: Date.now })
   date: Date;
 }
