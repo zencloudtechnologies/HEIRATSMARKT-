@@ -20,8 +20,8 @@ export class User {
   @Prop({ required: true })
   age: string;
 
-  @Prop({ required: true })
-  partnerAge: string;
+  @Prop({ type: [String], required: true })
+  partnerAge: string[];
 
   @Prop({ required: true })
   gender: string;

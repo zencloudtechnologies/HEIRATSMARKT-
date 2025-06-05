@@ -130,7 +130,7 @@ export class QuestionnaireService {
   
       // Get potential matches
       const otherUsers = await this.getAllUser({
-        age: user.partnerAge,
+        age: { $in: user.partnerAge },
         gender: user.partnerGender,
       });
   
@@ -303,7 +303,7 @@ export class QuestionnaireService {
                 cond: {
                   $and: [
                     { $eq: ['$$ou.gender', '$userDetails.partnerGender'] },
-                    { $eq: ['$$ou.age', '$userDetails.partnerAge'] },
+                    { $in: ['$$ou.age', '$userDetails.partnerAge'] },
                   ],
                 },
               },
