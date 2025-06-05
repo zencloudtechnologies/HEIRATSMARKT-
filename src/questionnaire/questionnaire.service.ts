@@ -121,6 +121,7 @@ export class QuestionnaireService {
             ans.optionNo2,
             ans.optionNo3,
             ans.optionNo4,
+            ans.optionNo5,
           ].filter(Boolean);
           maxPoints += options.length * 10;
         } else {
@@ -182,6 +183,7 @@ export class QuestionnaireService {
               userAns.optionNo2,
               userAns.optionNo3,
               userAns.optionNo4,
+              userAns.optionNo5,
             ].filter(Boolean);
   
             const otherOpts = [
@@ -189,6 +191,7 @@ export class QuestionnaireService {
               otherAns.optionNo2,
               otherAns.optionNo3,
               otherAns.optionNo4,
+              otherAns.optionNo5,
             ].filter(Boolean);
   
             for (const opt of userOpts) {
@@ -359,6 +362,7 @@ export class QuestionnaireService {
                                                 '$$matchingAnswer.optionNo2',
                                                 '$$matchingAnswer.optionNo3',
                                                 '$$matchingAnswer.optionNo4',
+                                                '$$matchingAnswer.optionNo5',
                                               ],
                                               as: 'opt',
                                               cond: { $ne: ['$$opt', null] },
@@ -371,6 +375,7 @@ export class QuestionnaireService {
                                                 '$$this.optionNo2',
                                                 '$$this.optionNo3',
                                                 '$$this.optionNo4',
+                                                '$$this.optionNo5',
                                               ],
                                               as: 'opt',
                                               cond: { $ne: ['$$opt', null] },
@@ -425,6 +430,7 @@ export class QuestionnaireService {
                                               '$$matchingAnswer.optionNo2',
                                               '$$matchingAnswer.optionNo3',
                                               '$$matchingAnswer.optionNo4',
+                                              '$$matchingAnswer.optionNo5',
                                             ],
                                             as: 'opt',
                                             cond: { $ne: ['$$opt', null] },
