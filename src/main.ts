@@ -11,7 +11,7 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
-  await app.listen(process.env.PORT ?? 3000);
-  console.log("Server started at port 3000")
+  await app.listen(process.env.PORT ?? 8000);
+  console.log("Server started at port 8000")
 }
 bootstrap();
